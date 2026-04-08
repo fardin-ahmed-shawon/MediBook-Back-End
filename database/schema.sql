@@ -58,6 +58,7 @@ CREATE TABLE appointments (
 CREATE TABLE appointment_schedules (
     id INT AUTO_INCREMENT PRIMARY KEY,
     appointment_id INT NOT NULL,
+    apointment_day ENUM('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday') NOT NULL,
     available_start_time TIME NOT NULL,
     appointment_duration_max INT NOT NULL COMMENT 'Duration in minutes',
 
