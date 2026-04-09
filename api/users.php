@@ -2,359 +2,282 @@
 session_start();
 require_once './config.php';
 
+header('Content-Type: application/json');
 
-// Set a custom error handler to return JSON for errors
-set_exception_handler(function ($exception) {
-    $response = array(
+// Global Exception Handler
+set_exception_handler(function ($e) {
+    echo json_encode([
         "success" => false,
-        "message" => $exception->getMessage()
-    );
-    echo json_encode($response);
+        "message" => $e->getMessage()
+    ]);
     exit();
 });
 
-
-// Receive the action type
+// Get action
 $action = $_GET['action'] ?? '';
 
-// Check if the 'action' parameter is set in the URL
-if ($action == '') {
-    $response = array(
+if (!$action) {
+    echo json_encode([
         "success" => false,
         "message" => "No action specified!"
-    );
-    echo json_encode($response);
+    ]);
     exit();
 }
 
-
-
-//////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////// Handle the 'add-user' action ///////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////
+/////////////////////// ADD USER //////////////////////////////
+//////////////////////////////////////////////////////////////
 if ($action == 'add-user') {
-    // Post data from the request
-    $first_name = $_POST['first_name'] ?? '';
-    $last_name = $_POST['last_name'] ?? '';
+
+    $full_name = $_POST['full_name'] ?? '';
     $phone = $_POST['phone'] ?? '';
-    $email = $_POST['email'] ?? ''; // optional
-    $gender = $_POST['gender'] ?? '';
+    $email = $_POST['email'] ?? '';
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
+    $user_type = $_POST['user_type'] ?? 'patient';
 
-    // Validate required fields
-    if (empty($first_name) || empty($last_name) || empty($phone) || empty($gender) || empty($password)) {
-        $response = array(
+    if (empty($full_name) || empty($phone) || empty($password)) {
+        echo json_encode([
             "success" => false,
-            "message" => "Fill up the required fields."
-        );
-        echo json_encode($response);
+            "message" => "Required fields missing."
+        ]);
         exit();
     }
 
-    // Check if user already exists by phone
-    $stmt = $conn->prepare("SELECT user_id FROM user_info WHERE user_phone = ?");
+    if ($password !== $confirm_password) {
+        echo json_encode([
+            "success" => false,
+            "message" => "Passwords do not match."
+        ]);
+        exit();
+    }
+
+    // Check phone
+    $stmt = $conn->prepare("SELECT id FROM users WHERE phone=?");
     $stmt->bind_param("s", $phone);
     $stmt->execute();
     $stmt->store_result();
+
     if ($stmt->num_rows > 0) {
-        $response = array(
+        echo json_encode([
             "success" => false,
-            "message" => "A user with this phone already exists."
-        );
-        echo json_encode($response);
+            "message" => "Phone already exists."
+        ]);
         exit();
     }
 
-    // Check if email exists (if provided)
+    // Check email
     if (!empty($email)) {
-        $stmt = $conn->prepare("SELECT user_id FROM user_info WHERE user_email = ?");
+        $stmt = $conn->prepare("SELECT id FROM users WHERE email=?");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $stmt->store_result();
+
         if ($stmt->num_rows > 0) {
-            $response = array(
+            echo json_encode([
                 "success" => false,
-                "message" => "A user with this email already exists."
-            );
-            echo json_encode($response);
+                "message" => "Email already exists."
+            ]);
             exit();
         }
     }
 
-    // Check if the password and confirm password match
-    if ($password !== $confirm_password) {
-        $response = array(
-            "success" => false,
-            "message" => "Password and Confirm Password do not match."
-        );
-        echo json_encode($response);
-        exit();
-    }
-
-    // Hash the password
     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
 
-    // Prepare and execute the SQL statement to insert the user into the database
-    $stmt = $conn->prepare("INSERT INTO user_info (user_fName, user_lName, user_phone, user_email, user_gender, user_password) VALUES (?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("ssssss", $first_name, $last_name, $phone, $email, $gender, $hashed_password);
+    $stmt = $conn->prepare("INSERT INTO users (full_name, phone, email, password_hashed, user_type) VALUES (?, ?, ?, ?, ?)");
+    $stmt->bind_param("sssss", $full_name, $phone, $email, $hashed_password, $user_type);
 
     if ($stmt->execute()) {
-        $response = array(
+        echo json_encode([
             "success" => true,
-            "message" => "User successfully added"
-        );
+            "message" => "User created successfully."
+        ]);
     } else {
-        $response = array(
+        echo json_encode([
             "success" => false,
-            "message" => "Error: " . $stmt->error
-        );
+            "message" => $stmt->error
+        ]);
     }
 
-    echo json_encode($response);
     exit();
 }
-////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////// END ///////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////
 
-
-
-//////////////////////////////////////////////////////////////////////////////////
-///////////////////// Handle the 'update-user-info' action //////////////////////
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////
+//////////////////// UPDATE USER INFO /////////////////////////
+//////////////////////////////////////////////////////////////
 else if ($action == 'update-user-info') {
 
-    $user_id = $_POST['user_id'] ?? '';
-    $first_name = $_POST['first_name'] ?? '';
-    $last_name = $_POST['last_name'] ?? '';
+    $id = $_POST['id'] ?? '';
+    $full_name = $_POST['full_name'] ?? '';
     $phone = $_POST['phone'] ?? '';
     $email = $_POST['email'] ?? '';
-    $gender = $_POST['gender'] ?? '';
+    $user_type = $_POST['user_type'] ?? 'patient';
 
-    // Validate required fields
-    if (empty($user_id) || empty($first_name) || empty($last_name) || empty($phone) || empty($gender)) {
-        $response = array(
+    if (empty($id) || empty($full_name) || empty($phone)) {
+        echo json_encode([
             "success" => false,
-            "message" => "All fields are required."
-        );
-        echo json_encode($response);
+            "message" => "Required fields missing."
+        ]);
         exit();
     }
 
-    // Check if phone is unique (exclude current user)
-    $stmt = $conn->prepare("SELECT user_id FROM user_info WHERE user_phone = ? AND user_id != ?");
-    $stmt->bind_param("si", $phone, $user_id);
+    // Check phone unique
+    $stmt = $conn->prepare("SELECT id FROM users WHERE phone=? AND id!=?");
+    $stmt->bind_param("si", $phone, $id);
     $stmt->execute();
     $stmt->store_result();
+
     if ($stmt->num_rows > 0) {
-        $response = array(
+        echo json_encode([
             "success" => false,
-            "message" => "This phone number is already in use by another user."
-        );
-        echo json_encode($response);
+            "message" => "Phone already used."
+        ]);
         exit();
     }
 
-    // Check if email is unique (exclude current user)
+    // Check email unique
     if (!empty($email)) {
-        $stmt = $conn->prepare("SELECT user_id FROM user_info WHERE user_email = ? AND user_id != ?");
-        $stmt->bind_param("si", $email, $user_id);
+        $stmt = $conn->prepare("SELECT id FROM users WHERE email=? AND id!=?");
+        $stmt->bind_param("si", $email, $id);
         $stmt->execute();
         $stmt->store_result();
+
         if ($stmt->num_rows > 0) {
-            $response = array(
+            echo json_encode([
                 "success" => false,
-                "message" => "This email is already in use by another user."
-            );
-            echo json_encode($response);
+                "message" => "Email already used."
+            ]);
             exit();
         }
     }
 
-    // Prepare and execute the SQL statement to update the user
-    $stmt = $conn->prepare("UPDATE user_info 
-                           SET user_fName = ?, user_lName = ?, user_phone = ?, user_email = ?, user_gender = ? 
-                           WHERE user_id = ?");
-    $stmt->bind_param("sssssi", $first_name, $last_name, $phone, $email, $gender, $user_id);
+    $stmt = $conn->prepare("UPDATE users SET full_name=?, phone=?, email=?, user_type=? WHERE id=?");
+    $stmt->bind_param("ssssi", $full_name, $phone, $email, $user_type, $id);
 
     if ($stmt->execute()) {
-        $response = array(
+        echo json_encode([
             "success" => true,
-            "message" => "User successfully updated"
-        );
+            "message" => "User updated successfully."
+        ]);
     } else {
-        $response = array(
+        echo json_encode([
             "success" => false,
-            "message" => "Error: " . $stmt->error
-        );
+            "message" => $stmt->error
+        ]);
     }
 
-    echo json_encode($response);
     exit();
 }
-////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////// END ///////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////
 
-
-
-//////////////////////////////////////////////////////////////////////////////////
-//////////////////////// Handle the 'update-user-password' action ////////////////////////
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////
+//////////////////// UPDATE PASSWORD //////////////////////////
+//////////////////////////////////////////////////////////////
 else if ($action == 'update-user-password') {
-    
-    $user_id = $_POST['user_id'] ?? '';
+
+    $id = $_POST['id'] ?? '';
     $current_password = $_POST['current_password'] ?? '';
     $new_password = $_POST['new_password'] ?? '';
-    $confirm_new_password = $_POST['confirm_new_password'] ?? '';
+    $confirm_password = $_POST['confirm_password'] ?? '';
 
-    // Validate required fields
-    if (empty($user_id) || empty($current_password) || empty($new_password) || empty($confirm_new_password)) {
-        echo json_encode([
-            "success" => false,
-            "message" => "All fields are required."
-        ]);
+    if (!$id || !$current_password || !$new_password || !$confirm_password) {
+        echo json_encode(["success" => false, "message" => "All fields required"]);
         exit();
     }
 
-    // Confirm new passwords match
-    if ($new_password !== $confirm_new_password) {
-        echo json_encode([
-            "success" => false,
-            "message" => "New passwords do not match."
-        ]);
+    if ($new_password !== $confirm_password) {
+        echo json_encode(["success" => false, "message" => "Passwords do not match"]);
         exit();
     }
 
-    // Fetch current password hash from database
-    $stmt = $conn->prepare("SELECT user_password FROM user_info WHERE user_id = ?");
-    $stmt->bind_param("i", $user_id);
+    $stmt = $conn->prepare("SELECT password_hashed FROM users WHERE id=?");
+    $stmt->bind_param("i", $id);
     $stmt->execute();
-    $result = $stmt->get_result();
+    $res = $stmt->get_result();
 
-    if (!$result || $result->num_rows === 0) {
-        echo json_encode([
-            "success" => false,
-            "message" => "User not found."
-        ]);
+    if ($res->num_rows === 0) {
+        echo json_encode(["success" => false, "message" => "User not found"]);
         exit();
     }
 
-    $user = $result->fetch_assoc();
+    $user = $res->fetch_assoc();
 
-    // Verify current password
-    if (!password_verify($current_password, $user['user_password'])) {
-        echo json_encode([
-            "success" => false,
-            "message" => "Current password is incorrect."
-        ]);
+    if (!password_verify($current_password, $user['password_hashed'])) {
+        echo json_encode(["success" => false, "message" => "Wrong current password"]);
         exit();
     }
 
-    // Hash new password
-    $hashed_password = password_hash($new_password, PASSWORD_DEFAULT);
+    $newHash = password_hash($new_password, PASSWORD_DEFAULT);
 
-    // Update password in database
-    $stmt = $conn->prepare("UPDATE user_info SET user_password = ? WHERE user_id = ?");
-    $stmt->bind_param("si", $hashed_password, $user_id);
+    $stmt = $conn->prepare("UPDATE users SET password_hashed=? WHERE id=?");
+    $stmt->bind_param("si", $newHash, $id);
 
     if ($stmt->execute()) {
-        echo json_encode([
-            "success" => true,
-            "message" => "Password updated successfully."
-        ]);
+        echo json_encode(["success" => true, "message" => "Password updated"]);
     } else {
-        echo json_encode([
-            "success" => false,
-            "message" => "Failed to update password."
-        ]);
+        echo json_encode(["success" => false, "message" => "Update failed"]);
     }
 
     exit();
 }
-////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////// END ///////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////////
+//////////////////////// LOGIN ////////////////////////////////
+//////////////////////////////////////////////////////////////
+else if ($action == 'user-login') {
 
-
-//////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////// Handle the 'user-login' action //////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-if ($action == 'user-login') {
-
-    // Get the phone and password from POST data
     $phone = $_POST['phone'] ?? '';
     $password = $_POST['password'] ?? '';
 
-    // Validate input
-    if (empty($phone) || empty($password)) {
+    if (!$phone || !$password) {
         echo json_encode([
             "success" => false,
-            "message" => "You must provide both phone and password."
+            "message" => "Phone & password required."
         ]);
         exit();
     }
 
-    // Fetch user by phone
-    $stmt = $conn->prepare("SELECT * FROM user_info WHERE user_phone = ?");
+    $stmt = $conn->prepare("SELECT * FROM users WHERE phone=?");
     $stmt->bind_param("s", $phone);
     $stmt->execute();
-    $result = $stmt->get_result();
+    $res = $stmt->get_result();
 
-    if ($result && $result->num_rows > 0) {
-        $user = $result->fetch_assoc();
+    if ($res->num_rows > 0) {
+        $user = $res->fetch_assoc();
 
-        // Verify password
-        if (password_verify($password, $user['user_password'])) {
-            // Set session variables
-            $_SESSION['user_logged_in'] = true;
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['user_name'] = $user['user_fName'] . " " . $user['user_lName'];
+        if (password_verify($password, $user['password_hashed'])) {
 
-            $response = [
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['user_name'] = $user['full_name'];
+            $_SESSION['user_type'] = $user['user_type'];
+
+            echo json_encode([
                 "success" => true,
-                "message" => "Login successful.",
-                "user" => [
-                    "id" => $user['user_id'],
-                    "first_name" => $user['user_fName'],
-                    "last_name" => $user['user_lName'],
-                    "phone" => $user['user_phone'],
-                    "email" => $user['user_email'],
-                    "gender" => $user['user_gender']
-                ]
-            ];
+                "message" => "Login successful",
+                "user" => $user
+            ]);
         } else {
-            $response = [
+            echo json_encode([
                 "success" => false,
-                "message" => "Your password is incorrect!"
-            ];
+                "message" => "Incorrect password"
+            ]);
         }
     } else {
-        $response = [
+        echo json_encode([
             "success" => false,
-            "message" => "Invalid phone or password."
-        ];
+            "message" => "User not found"
+        ]);
     }
 
-    echo json_encode($response);
     exit();
 }
-////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////// END ///////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////
 
-
-
-// Handle wrong/invalid action
+//////////////////////////////////////////////////////////////
+//////////////////// INVALID ACTION ///////////////////////////
+//////////////////////////////////////////////////////////////
 else {
-    $response = array(
+    echo json_encode([
         "success" => false,
-        "message" => "Invalid action specified!"
-    );
-    echo json_encode($response);
+        "message" => "Invalid action"
+    ]);
     exit();
 }
-
-?>
