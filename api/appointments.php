@@ -12,7 +12,7 @@ if (!$action) {
 //////////////////////////////////////////////////////////////
 //////////////////// ADD APPOINTMENT //////////////////////////
 //////////////////////////////////////////////////////////////
-if ($action == 'add') {
+if ($action == 'add-appointment') {
 
     $doctor_user_id = $_POST['doctor_user_id'] ?? '';
     $hospital_location = $_POST['hospital_location'] ?? '';
@@ -22,6 +22,9 @@ if ($action == 'add') {
 
     // schedules should come as JSON array
     $schedules_json = $_POST['schedules'] ?? '';
+
+    // JSON format example:
+    // [{"day":"Sunday","start_time":"10:00:00","duration":20},{"day":"Tuesday","start_time":"14:00:00","duration":30}]
 
     if (!$doctor_user_id || empty($schedules_json)) {
         echo json_encode(["success" => false, "message" => "Doctor & schedules required"]);
@@ -35,12 +38,12 @@ if ($action == 'add') {
         exit();
     }
 
-    // START TRANSACTION ✅
+    // START TRANSACTION 
     $conn->begin_transaction();
 
     try {
 
-        // 1️⃣ Insert Appointment
+        // Insert Appointment
         $stmt = $conn->prepare("INSERT INTO appointments 
             (doctor_user_id, hospital_location, hospital_name, chamber_location, visiting_fee) 
             VALUES (?, ?, ?, ?, ?)");
@@ -50,7 +53,7 @@ if ($action == 'add') {
 
         $appointment_id = $conn->insert_id;
 
-        // 2️⃣ Insert Multiple Schedules
+        //  Insert Multiple Schedules
         $stmt = $conn->prepare("INSERT INTO appointment_schedules 
             (appointment_id, appointment_day, available_start_time, appointment_duration_max) 
             VALUES (?, ?, ?, ?)");
@@ -69,7 +72,7 @@ if ($action == 'add') {
             $stmt->execute();
         }
 
-        // COMMIT ✅
+        // COMMIT
         $conn->commit();
 
         echo json_encode([
@@ -79,7 +82,7 @@ if ($action == 'add') {
 
     } catch (Exception $e) {
 
-        // ROLLBACK ❌
+        // ROLLBACK
         $conn->rollback();
 
         echo json_encode([
@@ -94,7 +97,7 @@ if ($action == 'add') {
 //////////////////////////////////////////////////////////////
 //////////////////// UPDATE APPOINTMENT ///////////////////////
 //////////////////////////////////////////////////////////////
-else if ($action == 'edit') {
+else if ($action == 'edit-appointment') {
 
     $appointment_id = $_POST['appointment_id'] ?? '';
     $hospital_location = $_POST['hospital_location'] ?? '';
@@ -166,7 +169,7 @@ else if ($action == 'edit') {
 //////////////////////////////////////////////////////////////
 //////////////////// DELETE /////////////////////////////////
 //////////////////////////////////////////////////////////////
-else if ($action == 'delete') {
+else if ($action == 'delete-appointment') {
 
     $id = $_POST['id'] ?? '';
 
@@ -190,7 +193,7 @@ else if ($action == 'delete') {
 //////////////////////////////////////////////////////////////
 //////////////////// FETCH ///////////////////////////////////
 //////////////////////////////////////////////////////////////
-else if ($action == 'fetch') {
+else if ($action == 'fetch-appointments') {
 
     $query = "
         SELECT a.*, u.full_name 

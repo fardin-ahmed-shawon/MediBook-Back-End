@@ -12,7 +12,7 @@ if (!$action) {
 //////////////////////////////////////////////////////
 //////////////////// ADD //////////////////////////////
 //////////////////////////////////////////////////////
-if ($action == 'add') {
+if ($action == 'add-doctor-category') {
 
     $name = $_POST['name'] ?? '';
 
@@ -37,14 +37,14 @@ if ($action == 'add') {
 
     echo json_encode([
         "success" => $stmt->execute(),
-        "message" => $stmt->execute() ? "Added" : $stmt->error
+        "message" => "Category added successfully"
     ]);
 }
 
 //////////////////////////////////////////////////////
 //////////////////// EDIT /////////////////////////////
 //////////////////////////////////////////////////////
-else if ($action == 'edit') {
+else if ($action == 'edit-doctor-category') {
 
     $id = $_POST['id'] ?? '';
     $name = $_POST['name'] ?? '';
@@ -66,7 +66,7 @@ else if ($action == 'edit') {
 //////////////////////////////////////////////////////
 //////////////////// DELETE ///////////////////////////
 //////////////////////////////////////////////////////
-else if ($action == 'delete') {
+else if ($action == 'delete-doctor-category') {
 
     $id = $_POST['id'] ?? '';
 
@@ -87,7 +87,7 @@ else if ($action == 'delete') {
 //////////////////////////////////////////////////////
 //////////////////// FETCH ////////////////////////////
 //////////////////////////////////////////////////////
-else if ($action == 'fetch') {
+else if ($action == 'fetch-doctor-categories') {
 
     $result = $conn->query("SELECT * FROM doctors_specialized_categories ORDER BY id DESC");
 

@@ -3,10 +3,10 @@ $servername = "localhost";
 
 //--------------------------------------------------------------------
 // For local development ---------------------------------------------
-$site_link = "";
+$site_link = "http://localhost/test/MediBook-Back-End/";
 $username = "root";
 $password = "";
-$database_name = "";
+$database_name = "doctor_appointment_system";
 
 // For production -----------------------------------------------------
 // $site_link = "";

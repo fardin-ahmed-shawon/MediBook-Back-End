@@ -52,6 +52,16 @@ if ($action == 'add-user') {
         exit();
     }
 
+    // Validate user type
+    $valid_user_types = ['patient', 'doctor', 'admin'];
+    if (!in_array($user_type, $valid_user_types)) {
+        echo json_encode([
+            "success" => false,
+            "message" => "Invalid user type."
+        ]);
+        exit();
+    }
+
     // Check phone
     $stmt = $conn->prepare("SELECT id FROM users WHERE phone=?");
     $stmt->bind_param("s", $phone);
